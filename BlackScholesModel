@@ -1,0 +1,46 @@
+import yfinance as yf
+import numpy as np
+from scipy.stats import norm
+from datetime import datetime, timedelta
+
+def get_stock_price(ticker_input):
+    stock_price = yf.Ticker(ticker_input).history(period="1d")['Close']
+    if stock_price.empty:
+        raise ValueError("No data available for the ticker.")
+    return round(stock_price.iloc[0], 2)
+
+def calculate_volatility(ticker_input):
+    end_date = datetime.today().strftime('%Y-%m-%d')
+    start_date = (datetime.today() - timedelta(days=365)).strftime('%Y-%m-%d')
+    data = yf.download(ticker_input, start=start_date, end=end_date)
+    if data.empty:
+        raise ValueError("No data available for this period.")
+    return (data["Adj Close"].pct_change().std() * np.sqrt(252)).round(2)
+
+def calculate_black_scholes(strike, U, T, R, V):
+    v_denom = V * np.sqrt(T)
+    d1 = (np.log(U / strike) + (R + 0.5 * V ** 2) * T) / v_denom
+    d2 = d1 - v_denom
+    call = U * norm.cdf(d1) - strike * np.exp(-R * T) * norm.cdf(d2)
+    put = strike * np.exp(-R * T) * norm.cdf(-d2) - U * norm.cdf(-d1)
+    return round(float(call), 2), round(float(put), 2)
+
+if __name__ == "__main__":
+    while True:
+        ticker_input = input("Enter the stock ticker: ").strip().upper()
+        try:
+            price = get_stock_price(ticker_input)
+            print(f"Latest price: ${price}")
+
+            strike_price = float(input("Enter the strike price: "))
+            time_to_maturity = 1
+            risk_free_rate = 0.0416
+            volatility = calculate_volatility(ticker_input)
+
+            call_price, put_price = calculate_black_scholes(strike_price, price, time_to_maturity, risk_free_rate, volatility)
+            print(f"Call option price: ${call_price}")
+            print(f"Put option price: ${put_price}")
+            break
+        except ValueError as e:
+            print(e)
+            print("Please try again.")
